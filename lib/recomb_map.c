@@ -54,7 +54,7 @@ recomb_map_alloc(recomb_map_t *self, double sequence_length,
         double *positions, double *rates, size_t size, bool discrete)
 {
     int ret = MSP_ERR_BAD_RECOMBINATION_MAP;
-    double length, s;
+    double total_mass;
     size_t j;
 
     memset(self, 0, sizeof(recomb_map_t));
@@ -76,10 +76,11 @@ recomb_map_alloc(recomb_map_t *self, double sequence_length,
         ret = MSP_ERR_NO_MEMORY;
         goto out;
     }
-    self->total_recombination_rate = 0.0;
     self->size = size;
     self->sequence_length = sequence_length;
     self->discrete = discrete;
+    total_mass = 0;
+    self->cumulative[0] = 0;
     for (j = 0; j < size; j++) {
         if (rates[j] < 0 || positions[j] < 0) {
             goto out;
@@ -89,19 +90,13 @@ recomb_map_alloc(recomb_map_t *self, double sequence_length,
             if (positions[j] <= positions[j - 1]) {
                 goto out;
             }
-            length = positions[j] - positions[j - 1];
-            self->total_recombination_rate += length * rates[j - 1];
+            total_mass += (positions[j] - positions[j - 1]) * rates[j - 1];
+            self->cumulative[j] = total_mass;
         }
         self->rates[j] = rates[j];
         self->positions[j] = positions[j];
     }
 
-    s = 0;
-    self->cumulative[0] = 0;
-    for (j = 1; j < size; j++) {
-        s += (self->positions[j] - self->positions[j - 1]) * self->rates[j - 1];
-        self->cumulative[j] = s;
-    }
     ret = 0;
 out:
     return ret;
@@ -128,7 +123,7 @@ recomb_map_free(recomb_map_t *self)
 double
 recomb_map_get_total_recombination_rate(recomb_map_t *self)
 {
-    return self->total_recombination_rate;
+    return self->cumulative[self->size - 1];
 }
 
 /* Returns the total physical length of the sequence.

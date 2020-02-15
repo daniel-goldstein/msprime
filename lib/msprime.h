@@ -205,7 +205,6 @@ typedef struct _simulation_model_t {
 
 typedef struct {
     double sequence_length; /* size of the physical coordinate space */
-    double total_recombination_rate;
     size_t size;            /* the total number of values in the map */
     double *positions;
     double *rates;
