@@ -485,6 +485,8 @@ msp_alloc(msp_t *self,
     if (ret != 0) {
         goto out;
     }
+    self->merge_queue = NULL;
+    self->max_merge_queue_size = 0;
     /* Set sensible defaults for the sample_config and migration matrix */
     self->initial_migration_matrix[0] = 0.0;
     /* Set the memory defaults */
@@ -503,6 +505,21 @@ msp_alloc(msp_t *self,
     self->state = MSP_STATE_NEW;
     /* Set up pedigree */
     self->pedigree = NULL;
+out:
+    return ret;
+}
+
+static int
+msp_realloc_merge_queue(msp_t *self, size_t size)
+{
+    int ret = 0;
+    self->merge_queue = realloc(self->merge_queue, size * sizeof(segment_t *));
+    if (self->merge_queue == NULL) {
+        ret = MSP_ERR_NO_MEMORY;
+        goto out;
+    }
+    self->max_merge_queue_size = size;
+
 out:
     return ret;
 }
@@ -595,6 +612,7 @@ msp_free(msp_t *self)
     msp_safe_free(self->samples);
     msp_safe_free(self->sampling_events);
     msp_safe_free(self->buffered_edges);
+    msp_safe_free(self->merge_queue);
     /* free the object heaps */
     object_heap_free(&self->avl_node_heap);
     object_heap_free(&self->node_mapping_heap);
@@ -2676,11 +2694,13 @@ msp_merge_ancestors(msp_t *self, avl_tree_t *Q, population_id_t population_id,
     segment_t *x, *z, *alpha;
     segment_t **H = NULL;
 
-    H = malloc(avl_count(Q) * sizeof(segment_t *));
-    if (H == NULL) {
-        ret = MSP_ERR_NO_MEMORY;
-        goto out;
+    if (avl_count(Q) > self->max_merge_queue_size) {
+        ret = msp_realloc_merge_queue(self, avl_count(Q));
+        if (ret != 0) {
+            goto out;
+        }
     }
+    H = self->merge_queue;
     r_max = 0; /* keep compiler happy */
     l_min = 0;
     z = NULL;
@@ -2875,9 +2895,6 @@ msp_merge_ancestors(msp_t *self, avl_tree_t *Q, population_id_t population_id,
     }
     ret = 0;
 out:
-    if (H != NULL) {
-        free(H);
-    }
     return ret;
 }
 

@@ -235,6 +235,8 @@ typedef struct _msp_t {
     double *initial_migration_matrix;
     population_t *initial_populations;
     pedigree_t *pedigree;
+    segment_t **merge_queue;
+    size_t max_merge_queue_size;
     /* allocation block sizes */
     size_t avl_node_block_size;
     size_t node_mapping_block_size;
