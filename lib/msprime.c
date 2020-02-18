@@ -1931,7 +1931,7 @@ msp_dtwf_recombine(msp_t *self, segment_t *x, segment_t **u, segment_t **v)
 
         if (x->right > k) {
             // Make new segment
-            assert(x->left <= k);
+            assert(x->left < k);
             k_mass = recomb_map_position_to_mass(self->recomb_map, k);
             self->num_re_events++;
             ix = (ix + 1) % 2;
@@ -3896,7 +3896,7 @@ msp_dtwf_generation(msp_t *self)
             // Merge segments in each parental chromosome
             for (i = 0; i < 2; i ++) {
                 unsigned int count = avl_count(&Q[i]);
-                if (count == 2) {
+                if (count < 0) {
                     segment_t *seg1 = (segment_t *) Q[i].head->item;
                     segment_t *seg2 = (segment_t *) Q[i].tail->item;
                     ret = msp_merge_two_ancestors(self, (population_id_t) j,

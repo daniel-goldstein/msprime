@@ -522,6 +522,10 @@ class RecombinationMap(object):
             cumulative.append(recomb_mass)
         return cumulative
 
+    @property
+    def total_recombination_rate(self):
+        return self.cumulative[-1]
+
     def mass_between(self, left, right):
         left_mass = self.position_to_mass(left)
         right_mass = self.position_to_mass(right)
@@ -559,7 +563,8 @@ class RecombinationMap(object):
 
     def sample_poisson(self, start):
         left_bound = start + 1 if self.discrete else start
-        mass_to_next_recomb = np.random.poisson(1.0)
+        mass_to_next_recomb = np.random.exponential(1.0)
+        assert mass_to_next_recomb > 0
         return self.shift_by_mass(left_bound, mass_to_next_recomb)
 
     def _search(self, values, query):
@@ -1530,7 +1535,9 @@ class Simulator(object):
                 self.P[lhs.population].add(lhs, lhs.label)
 
     def dtwf_generate_breakpoint(self, start):
-        return self.recomb_map.sample_poisson(start)
+        k = self.recomb_map.sample_poisson(start)
+        assert k > start
+        return k
 
     def dtwf_recombine(self, x):
         """
@@ -1555,7 +1562,7 @@ class Simulator(object):
             y = x.next
 
             if x.right > k:
-                assert x.left <= k
+                assert x.left < k
                 k_mass = self.recomb_map.position_to_mass(k)
                 self.num_re_events += 1
                 ix = (ix + 1) % 2
@@ -1564,6 +1571,7 @@ class Simulator(object):
                     k, x.right,
                     k_mass, x.right_mass,
                     x.node, x.population, seg_tails[ix], x.next)
+                assert z.left < z.right
                 if x.next is not None:
                     x.next.prev = z
                 seg_tails[ix].next = z
@@ -1571,6 +1579,7 @@ class Simulator(object):
                 x.next = None
                 x.right = k
                 x.right_mass = k_mass
+                self.subtract_segment_mass(x, z)
                 x = z
                 k = self.dtwf_generate_breakpoint(k)
             elif x.right <= k and y is not None and y.left >= k:
@@ -1578,7 +1587,7 @@ class Simulator(object):
                 assert seg_tails[ix] == x
                 x.next = None
                 y.prev = None
-                while y.left > k:
+                while y.left >= k:
                     self.num_re_events += 1
                     ix = (ix + 1) % 2
                     k = self.dtwf_generate_breakpoint(k)
@@ -1644,41 +1653,41 @@ class Simulator(object):
                 heapq.heappush(H, (x.left, x))
         self.merge_ancestors(H, pop_id, label)
 
-    def merge_ancestors(self, H, pop_id, label):
+    def merge_ancestors(self, Q, pop_id, label):
         pop = self.P[pop_id]
         defrag_required = False
         coalescence = False
         alpha = None
         z = None
-        while len(H) > 0:
+        while len(Q) > 0:
             # print("LOOP HEAD")
-            # self.print_heaps(H)
+            # self.print_heaps(Q)
             alpha = None
-            left = H[0][0]
-            X = []
+            left = Q[0][0]
+            H = []
             r_max = self.m
-            while len(H) > 0 and H[0][0] == left:
-                x = heapq.heappop(H)[1]
-                X.append(x)
+            while len(Q) > 0 and Q[0][0] == left:
+                x = heapq.heappop(Q)[1]
+                H.append(x)
                 r_max = min(r_max, x.right)
-            if len(H) > 0:
-                r_max = min(r_max, H[0][0])
-            if len(X) == 1:
-                x = X[0]
-                if len(H) > 0 and H[0][0] < x.right:
-                    next_l_mass = H[0][1].left_mass
+            if len(Q) > 0:
+                r_max = min(r_max, Q[0][0])
+            if len(H) == 1:
+                x = H[0]
+                if len(Q) > 0 and Q[0][0] < x.right:
+                    next_l_mass = Q[0][1].left_mass
                     alpha = self.alloc_segment(
-                        x.left, H[0][0],
+                        x.left, Q[0][0],
                         x.left_mass, next_l_mass,
                         x.node, x.population)
                     alpha.label = label
-                    x.left = H[0][0]
+                    x.left = Q[0][0]
                     x.left_mass = next_l_mass
-                    heapq.heappush(H, (x.left, x))
+                    heapq.heappush(Q, (x.left, x))
                 else:
                     if x.next is not None:
                         y = x.next
-                        heapq.heappush(H, (y.left, y))
+                        heapq.heappush(Q, (y.left, y))
                     alpha = x
                     alpha.next = None
             else:
@@ -1695,13 +1704,13 @@ class Simulator(object):
                     j = self.S.floor_key(r_max)
                     self.S[r_max] = self.S[j]
                 # Update the number of extant segments.
-                if self.S[left] == len(X):
+                if self.S[left] == len(H):
                     self.S[left] = 0
                     right = self.S.succ_key(left)
                 else:
                     right = left
-                    while right < r_max and self.S[right] != len(X):
-                        self.S[right] -= len(X) - 1
+                    while right < r_max and self.S[right] != len(H):
+                        self.S[right] -= len(H) - 1
                         right = self.S.succ_key(right)
                     alpha = self.alloc_segment(
                                 left, right,
@@ -1709,16 +1718,16 @@ class Simulator(object):
                                 self.recomb_map.position_to_mass(right),
                                 u, pop_id)
                 # Update the heaps and make the record.
-                for x in X:
+                for x in H:
                     self.store_edge(left, right, u, x.node)
                     if x.right == right:
                         self.free_segment(x)
                         if x.next is not None:
                             y = x.next
-                            heapq.heappush(H, (y.left, y))
+                            heapq.heappush(Q, (y.left, y))
                     elif x.right > right:
                         self.set_segment_left_endpoint(x, right)
-                        heapq.heappush(H, (x.left, x))
+                        heapq.heappush(Q, (x.left, x))
 
             # loop tail; update alpha and integrate it into the state.
             if alpha is not None:
@@ -1943,7 +1952,7 @@ class Simulator(object):
                     right = u.left
                     while u is not None:
                         assert u.population == pop_index
-                        assert u.left < u.right
+                        assert u.left < u.right, f'{u.left} | {u.right}'
                         l_mass = self.recomb_map.position_to_mass(u.left)
                         r_mass = self.recomb_map.position_to_mass(u.right)
                         assert math.isclose(u.left_mass, l_mass, abs_tol=1e-6)
