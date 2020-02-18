@@ -2738,16 +2738,19 @@ msp_merge_ancestors(msp_t *self, avl_tree_t *Q, population_id_t population_id,
                 }
                 x->left = next_l;
                 x->left_mass = next_l_mass;
-            } else {
-                alpha = x;
-                x = x->next;
-                alpha->next = NULL;
-            }
-            if (x != NULL) {
                 ret = msp_priority_queue_insert(self, Q, x);
                 if (ret != 0) {
                     goto out;
                 }
+            } else {
+                if (x->next != NULL) {
+                    ret = msp_priority_queue_insert(self, Q, x->next);
+                    if (ret != 0) {
+                        goto out;
+                    }
+                }
+                alpha = x;
+                alpha->next = NULL;
             }
         } else {
             if (!coalescence) {
@@ -3894,13 +3897,18 @@ msp_dtwf_generation(msp_t *self)
                 }
             }
             // Merge segments in each parental chromosome
-            for (i = 0; i < 2; i ++) {
+            for (i = 0; i < 2; i++) {
                 unsigned int count = avl_count(&Q[i]);
-                if (count < 0) {
-                    segment_t *seg1 = (segment_t *) Q[i].head->item;
-                    segment_t *seg2 = (segment_t *) Q[i].tail->item;
-                    ret = msp_merge_two_ancestors(self, (population_id_t) j,
-                            label, seg1, seg2);
+                if (count == 0) {
+                } else if (count < 1) {
+                    node = Q[i].head;
+                    segment_t *seg = (segment_t *) node->item;
+                    ret = msp_insert_individual(self, seg);
+                    if (ret != 0) {
+                        goto out;
+                    }
+                    msp_free_avl_node(self, node);
+                    avl_unlink_node(Q, node);
                 } else {
                     ret = msp_merge_ancestors(self, &Q[i], (population_id_t) j,
                             label, NULL, TSK_NULL);
