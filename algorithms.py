@@ -1153,7 +1153,18 @@ class Simulator(object):
 
                 # Merge segments
                 for h in H:
-                    self.merge_ancestors(h, pop_idx, 0)  # label 0 only
+                    print(len(h))
+                    if len(h) == 0:
+                        pass
+                    elif len(h) == 1:
+                        left, seg = h[0]
+                        # Will this ever be necessary?
+                        # self.defrag_segment_chain(seg)
+                        self.P[pop_idx].add(seg, 0)
+                    elif len(h) == 2:
+                        self.merge_ancestors(h, pop_idx, 0)  # label 0 only
+                    else:
+                        self.merge_ancestors(h, pop_idx, 0)  # label 0 only
 
         # Migration events happen at the rates in the matrix.
         for j in range(len(self.P)):
@@ -1660,8 +1671,6 @@ class Simulator(object):
         alpha = None
         z = None
         while len(Q) > 0:
-            # print("LOOP HEAD")
-            # self.print_heaps(Q)
             alpha = None
             left = Q[0][0]
             H = []
@@ -1785,17 +1794,7 @@ class Simulator(object):
             else:
                 j = k
 
-    def common_ancestor_event(self, population_index, label):
-        """
-        Implements a coancestry event.
-        """
-        pop = self.P[population_index]
-        self.num_ca_events += 1
-        # Choose two ancestors uniformly.
-        j = random.randint(0, pop.get_num_ancestors(label) - 1)
-        x = pop.remove(j, label)
-        j = random.randint(0, pop.get_num_ancestors(label) - 1)
-        y = pop.remove(j, label)
+    def merge_two_ancestors(self, pop_idx, label, x, y):
         pop = self.P[population_index]
         z = None
         coalescence = False
@@ -1896,6 +1895,18 @@ class Simulator(object):
         if coalescence:
             self.defrag_breakpoints()
 
+    def common_ancestor_event(self, population_index, label):
+        """
+        Implements a coancestry event.
+        """
+        self.num_ca_events += 1
+        # Choose two ancestors uniformly.
+        j = random.randint(0, pop.get_num_ancestors(label) - 1)
+        x = pop.remove(j, label)
+        j = random.randint(0, pop.get_num_ancestors(label) - 1)
+        y = pop.remove(j, label)
+        self.merge_two_ancestors(population_index, label, x, y)
+
     def print_state(self):
         print("State @ time ", self.t)
         for l in range(self.num_labels):
@@ -1936,7 +1947,8 @@ class Simulator(object):
 
         for pos, count in self.S.items():
             if pos != self.m:
-                assert count == overlap_counter.overlaps_at(pos)
+                count2 = overlap_counter.overlaps_at(pos)
+                assert count == count2, f'{count} | {count2}'
 
     def verify(self):
         """
