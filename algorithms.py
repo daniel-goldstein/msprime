@@ -1153,7 +1153,6 @@ class Simulator(object):
 
                 # Merge segments
                 for h in H:
-                    print(len(h))
                     if len(h) == 0:
                         pass
                     elif len(h) == 1:
@@ -1162,7 +1161,9 @@ class Simulator(object):
                         # self.defrag_segment_chain(seg)
                         self.P[pop_idx].add(seg, 0)
                     elif len(h) == 2:
-                        self.merge_ancestors(h, pop_idx, 0)  # label 0 only
+                        x = h[0][1]
+                        y = h[1][1]
+                        self.merge_two_ancestors(pop_idx, 0, x, y)  # label 0 only
                     else:
                         self.merge_ancestors(h, pop_idx, 0)  # label 0 only
 
@@ -1794,7 +1795,7 @@ class Simulator(object):
             else:
                 j = k
 
-    def merge_two_ancestors(self, pop_idx, label, x, y):
+    def merge_two_ancestors(self, population_index, label, x, y):
         pop = self.P[population_index]
         z = None
         coalescence = False
@@ -1899,6 +1900,7 @@ class Simulator(object):
         """
         Implements a coancestry event.
         """
+        pop = self.P[population_index]
         self.num_ca_events += 1
         # Choose two ancestors uniformly.
         j = random.randint(0, pop.get_num_ancestors(label) - 1)
