@@ -3894,7 +3894,17 @@ msp_dtwf_generation(msp_t *self)
             }
             // Merge segments in each parental chromosome
             for (i = 0; i < 2; i ++) {
-                ret = msp_merge_ancestors(self, &Q[i], (population_id_t) j, label, NULL, TSK_NULL);
+                unsigned int count = avl_count(&Q[i]);
+                if (count == 2) {
+                    avl_node_t *head = Q[i].head;
+                    segment_t *first = (segment_t *) head->item;
+                    segment_t *second = (segment_t *) head->next->item;
+                    ret = msp_merge_two_ancestors(self, (population_id_t) j,
+                            label, first, second);
+                } else if (count > 0) {
+                    ret = msp_merge_ancestors(self, &Q[i], (population_id_t) j,
+                            label, NULL, TSK_NULL);
+                }
                 if (ret != 0) {
                     goto out;
                 }
