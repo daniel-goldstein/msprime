@@ -2583,6 +2583,7 @@ msp_merge_two_ancestors(msp_t *self, population_id_t population_id, label_id_t l
                 if (ret != 0) {
                     goto out;
                 }
+                assert(v != y->value);
                 ret = msp_store_edge(self, l, r, v, y->value);
                 if (ret != 0) {
                     goto out;
@@ -3896,12 +3897,11 @@ msp_dtwf_generation(msp_t *self)
             for (i = 0; i < 2; i ++) {
                 unsigned int count = avl_count(&Q[i]);
                 if (count == 2) {
-                    avl_node_t *head = Q[i].head;
-                    segment_t *first = (segment_t *) head->item;
-                    segment_t *second = (segment_t *) head->next->item;
+                    segment_t *seg1 = (segment_t *) Q[i].head->item;
+                    segment_t *seg2 = (segment_t *) Q[i].tail->item;
                     ret = msp_merge_two_ancestors(self, (population_id_t) j,
-                            label, first, second);
-                } else if (count > 0) {
+                            label, seg1, seg2);
+                } else {
                     ret = msp_merge_ancestors(self, &Q[i], (population_id_t) j,
                             label, NULL, TSK_NULL);
                 }
