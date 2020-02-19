@@ -3849,6 +3849,7 @@ msp_dtwf_generation(msp_t *self)
     population_t *pop;
     segment_t *x;
     segment_t *u[2];
+    segment_t *seg1, *seg2;
     segment_list_t **parents = NULL;
     segment_list_t *segment_mem = NULL;
     segment_list_t *s;
@@ -3932,20 +3933,21 @@ msp_dtwf_generation(msp_t *self)
             }
             // Merge segments in each parental chromosome
             for (i = 0; i < 2; i++) {
-                unsigned int count = avl_count(&Q[i]);
-                if (count == 1) {
-                    segment_t *seg = msp_priority_queue_pop(self, &Q[i]);
-                    assert(seg->prev == NULL);
-                    ret = msp_insert_individual(self, seg);
-                    msp_set_segment_chain_mass(self, seg);
-                } else if (count == 2) {
-                    segment_t *seg1 = msp_priority_queue_pop(self, &Q[i]);
-                    segment_t *seg2 = msp_priority_queue_pop(self, &Q[i]);
-                    ret = msp_merge_two_ancestors(self, (population_id_t) j,
-                            label, seg1, seg2);
-                } else if (count > 0) {
-                    ret = msp_merge_ancestors(self, &Q[i], (population_id_t) j,
-                            label, NULL, TSK_NULL);
+                switch (avl_count(&Q[i])) {
+                    case 1:
+                        seg1 = msp_priority_queue_pop(self, &Q[i]);
+                        ret = msp_insert_individual(self, seg1);
+                        msp_set_segment_chain_mass(self, seg1);
+                        break;
+                    case 2:
+                        seg1 = msp_priority_queue_pop(self, &Q[i]);
+                        seg2 = msp_priority_queue_pop(self, &Q[i]);
+                        ret = msp_merge_two_ancestors(self, (population_id_t) j,
+                                label, seg1, seg2);
+                        break;
+                    default:
+                        ret = msp_merge_ancestors(self, &Q[i], (population_id_t) j,
+                                label, NULL, TSK_NULL);
                 }
                 if (ret != 0) {
                     goto out;
