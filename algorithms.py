@@ -1159,7 +1159,12 @@ class Simulator(object):
                         left, seg = q[0]
                         assert seg.prev is None
                         self.P[pop_idx].add(seg, 0)
-                        self.defrag_segment_chain(seg)
+                        self.set_single_segment_mass(seg)
+                        next_seg = seg.next
+                        while next_seg is not None:
+                            self.set_segment_mass(next_seg, seg)
+                            seg = next_seg
+                            next_seg = next_seg.next
                     elif len(q) == 2:
                         x = q[0][1]
                         y = q[1][1]
@@ -1959,6 +1964,7 @@ class Simulator(object):
         """
         self.verify_overlaps()
         q = 0
+        total_mass = 0
         for pop_index, pop in enumerate(self.P):
             for l in range(self.num_labels):
                 for u in pop.iter_label(l):
@@ -1979,9 +1985,10 @@ class Simulator(object):
                             s = self.recomb_map.mass_between_left_exclusive(
                                             u.left, u.right)
                         right = u.right
-                        if self.model != 'dtwf' and self.model != 'wf_ped':
-                            freq = self.L[l].get_frequency(u.index)
-                            assert math.isclose(s, freq, abs_tol=1e-6), f'{s} | {freq}'
+                        if self.model != 'wf_ped':
+                            ss = self.L[l].get_frequency(u.index)
+                            total_mass += ss
+                            assert math.isclose(s, ss, abs_tol=1e-6)
                         v = u.next
                         if v is not None:
                             assert v.prev == u
@@ -1990,6 +1997,7 @@ class Simulator(object):
                             assert u.right <= v.left
                         u = v
                     q += self.recomb_map.mass_between_left_exclusive(left, right)
+            assert math.isclose(total_mass, self.L[l].get_total())
         # add check for dealing with labels
         lab_tot = 0
         for l in range(self.num_labels):

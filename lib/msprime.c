@@ -799,9 +799,7 @@ msp_verify_segments(msp_t *self, bool verify_breakpoints)
                     }
                     ss = fenwick_get_value(&self->links[k], u->id);
                     total_mass += ss;
-                    if (doubles_almost_equal(s, ss, 1e-6) == 0) {
-                        printf("%f | %f\n", s, ss);
-                    }
+                    assert(doubles_almost_equal(s, ss, 1e-6));
                     if (s == ss) {
                         /* do nothing; just to keep compiler happy - see below also */
                     }
@@ -1488,6 +1486,20 @@ msp_set_single_segment_mass(msp_t *self, segment_t *seg)
     fenwick_set_value(&self->links[seg->label], seg->id, mass);
 }
 
+static void
+msp_set_segment_chain_mass(msp_t *self, segment_t *head)
+{
+    segment_t *curr;
+    assert(head->prev == NULL);
+
+    msp_set_single_segment_mass(self, head);
+    curr = head->next;
+    while (curr != NULL) {
+        msp_set_segment_mass(self, curr, curr->prev);
+        curr = curr->next;
+    }
+}
+
 /* Defragment the segment chain ending in z by squashing any redundant
  * segments together */
 static int MSP_WARN_UNUSED
@@ -1937,7 +1949,7 @@ msp_dtwf_recombine(msp_t *self, segment_t *x, segment_t **u, segment_t **v)
 
         if (x->right > k) {
             // Make new segment
-            assert(x->left < k);
+            assert(x->left <= k);
             k_mass = recomb_map_position_to_mass(self->recomb_map, k);
             self->num_re_events++;
             ix = (ix + 1) % 2;
@@ -3923,7 +3935,9 @@ msp_dtwf_generation(msp_t *self)
                 unsigned int count = avl_count(&Q[i]);
                 if (count == 1) {
                     segment_t *seg = msp_priority_queue_pop(self, &Q[i]);
+                    assert(seg->prev == NULL);
                     ret = msp_insert_individual(self, seg);
+                    msp_set_segment_chain_mass(self, seg);
                 } else if (count == 2) {
                     segment_t *seg1 = msp_priority_queue_pop(self, &Q[i]);
                     segment_t *seg2 = msp_priority_queue_pop(self, &Q[i]);
