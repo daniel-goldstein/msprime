@@ -1971,7 +1971,6 @@ msp_dtwf_recombine(msp_t *self, segment_t *x, segment_t **u, segment_t **v)
             x = y;
             z = y;
             msp_set_single_segment_mass(self, z);
-
         } else {
             // Breakpoint in later segment
             x = y;
@@ -3889,6 +3888,7 @@ msp_dtwf_generation(msp_t *self)
                 // Add to AVLTree for each parental chromosome
                 for (i = 0; i < 2; i++) {
                     if (u[i] != NULL) {
+                        //assert(u[i]->prev == NULL);
                         ret = msp_priority_queue_insert(self, &Q[i], u[i]);
                         if (ret != 0) {
                             goto out;
@@ -3899,17 +3899,32 @@ msp_dtwf_generation(msp_t *self)
             // Merge segments in each parental chromosome
             for (i = 0; i < 2; i++) {
                 unsigned int count = avl_count(&Q[i]);
-                if (count == 0) {
-                } else if (count < 1) {
+                if (count == 1) {
                     node = Q[i].head;
                     segment_t *seg = (segment_t *) node->item;
+                    msp_free_avl_node(self, node);
+                    avl_unlink_node(&Q[i], node);
+                    assert(node->next == NULL);
+                    assert(avl_count(&Q[i]) == 0);
                     ret = msp_insert_individual(self, seg);
                     if (ret != 0) {
                         goto out;
                     }
+                    ret = msp_defrag_segment_chain(self, seg);
+                } else if (count == 2) { /* TODO Clean up */
+                    node = Q[i].head;
+                    segment_t *seg1 = (segment_t *) node->item;
                     msp_free_avl_node(self, node);
-                    avl_unlink_node(Q, node);
-                } else {
+                    avl_unlink_node(&Q[i], node);
+                    node = node->next;
+                    segment_t *seg2 = (segment_t *) node->item;
+                    msp_free_avl_node(self, node);
+                    avl_unlink_node(&Q[i], node);
+                    assert(node->next == NULL);
+                    assert(avl_count(&Q[i]) == 0);
+                    ret = msp_merge_two_ancestors(self, (population_id_t) j,
+                            label, seg1, seg2);
+                } else if (count > 0) {
                     ret = msp_merge_ancestors(self, &Q[i], (population_id_t) j,
                             label, NULL, TSK_NULL);
                 }

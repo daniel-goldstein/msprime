@@ -1140,7 +1140,7 @@ class Simulator(object):
             # Draw recombinations in children and sort segments by
             # inheritance direction
             for children in offspring.values():
-                H = [[], []]
+                Q = [[], []]
                 for child in children:
                     segs_pair = self.dtwf_recombine(child)
 
@@ -1149,23 +1149,22 @@ class Simulator(object):
                         if seg is None:
                             continue
                         assert seg.prev is None
-                        heapq.heappush(H[i], (seg.left, seg))
+                        heapq.heappush(Q[i], (seg.left, seg))
 
                 # Merge segments
-                for h in H:
-                    if len(h) == 0:
+                for q in Q:
+                    if len(q) == 0:
                         pass
-                    elif len(h) == 1:
-                        left, seg = h[0]
-                        # Will this ever be necessary?
-                        # self.defrag_segment_chain(seg)
+                    elif len(q) == 1:
+                        left, seg = q[0]
                         self.P[pop_idx].add(seg, 0)
-                    elif len(h) == 2:
-                        x = h[0][1]
-                        y = h[1][1]
+                        self.defrag_segment_chain(seg)
+                    elif len(q) == 2:
+                        x = q[0][1]
+                        y = q[1][1]
                         self.merge_two_ancestors(pop_idx, 0, x, y)  # label 0 only
                     else:
-                        self.merge_ancestors(h, pop_idx, 0)  # label 0 only
+                        self.merge_ancestors(q, pop_idx, 0)  # label 0 only
 
         # Migration events happen at the rates in the matrix.
         for j in range(len(self.P)):
@@ -1567,7 +1566,8 @@ class Simulator(object):
 
         ix = np.random.randint(2)
         seg_tails[ix].next = x
-        seg_tails[ix] = x
+        assert x.prev is None
+        x.prev = seg_tails[ix]
 
         while x is not None:
             seg_tails[ix] = x
