@@ -799,7 +799,9 @@ msp_verify_segments(msp_t *self, bool verify_breakpoints)
                     }
                     ss = fenwick_get_value(&self->links[k], u->id);
                     total_mass += ss;
-                    assert(doubles_almost_equal(s, ss, 1e-6));
+                    if (doubles_almost_equal(s, ss, 1e-6) == 0) {
+                        printf("%f | %f\n", s, ss);
+                    }
                     if (s == ss) {
                         /* do nothing; just to keep compiler happy - see below also */
                     }
@@ -1922,6 +1924,10 @@ msp_dtwf_recombine(msp_t *self, segment_t *x, segment_t **u, segment_t **v)
     s2.next = NULL;
     ix = (int) gsl_rng_uniform_int(self->rng, 2);
     seg_tails[ix]->next = x;
+    if (x->prev != NULL) {
+        printf("Problematic segment: %u\n", x->value);
+        exit(1);
+    }
     assert(x->prev == NULL);
     x->prev = seg_tails[ix];
 
@@ -1979,7 +1985,13 @@ msp_dtwf_recombine(msp_t *self, segment_t *x, segment_t **u, segment_t **v)
     }
     // Remove sentinal segments
     *u = s1.next;
+    if (*u != NULL) {
+        (*u)->prev = NULL;
+    }
     *v = s2.next;
+    if (*v != NULL) {
+        (*v)->prev = NULL;
+    }
 
 out:
     return ret;
@@ -3857,7 +3869,7 @@ msp_dtwf_generation(msp_t *self)
 
         // Allocate memory for linked list of offspring per parent
         parents = calloc(N, sizeof(segment_list_t *));
-        segment_mem = malloc(msp_get_num_ancestors(self) * sizeof(segment_list_t));
+        segment_mem = calloc(msp_get_num_ancestors(self), sizeof(segment_list_t));
         if (parents == NULL || segment_mem == NULL){
             ret = MSP_ERR_NO_MEMORY;
             goto out;
@@ -3899,7 +3911,6 @@ msp_dtwf_generation(msp_t *self)
                 // Add to AVLTree for each parental chromosome
                 for (i = 0; i < 2; i++) {
                     if (u[i] != NULL) {
-                        //assert(u[i]->prev == NULL);
                         ret = msp_priority_queue_insert(self, &Q[i], u[i]);
                         if (ret != 0) {
                             goto out;
@@ -3910,13 +3921,9 @@ msp_dtwf_generation(msp_t *self)
             // Merge segments in each parental chromosome
             for (i = 0; i < 2; i++) {
                 unsigned int count = avl_count(&Q[i]);
-                if (count == 0 && count == 1) {
+                if (count == 1) {
                     segment_t *seg = msp_priority_queue_pop(self, &Q[i]);
                     ret = msp_insert_individual(self, seg);
-                    if (ret != 0) {
-                        goto out;
-                    }
-                    ret = msp_defrag_segment_chain(self, seg);
                 } else if (count == 2) {
                     segment_t *seg1 = msp_priority_queue_pop(self, &Q[i]);
                     segment_t *seg2 = msp_priority_queue_pop(self, &Q[i]);

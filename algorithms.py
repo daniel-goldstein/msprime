@@ -1157,6 +1157,7 @@ class Simulator(object):
                         pass
                     elif len(q) == 1:
                         left, seg = q[0]
+                        assert seg.prev is None
                         self.P[pop_idx].add(seg, 0)
                         self.defrag_segment_chain(seg)
                     elif len(q) == 2:
