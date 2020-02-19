@@ -2673,6 +2673,17 @@ out:
     return ret;
 }
 
+static segment_t *
+msp_priority_queue_pop(msp_t *self, avl_tree_t *Q)
+{
+    avl_node_t *node = Q->head;
+    segment_t *seg = (segment_t *) node->item;
+    msp_free_avl_node(self, node);
+    avl_unlink_node(Q, node);
+
+    return seg;
+}
+
 /* Merge the specified set of ancestors into a single ancestor. This is a
  * generalisation of the msp_common_ancestor_event method where we allow
  * any number of ancestors to merge. The AVL tree is a priority queue in
@@ -3899,29 +3910,16 @@ msp_dtwf_generation(msp_t *self)
             // Merge segments in each parental chromosome
             for (i = 0; i < 2; i++) {
                 unsigned int count = avl_count(&Q[i]);
-                if (count == 1) {
-                    node = Q[i].head;
-                    segment_t *seg = (segment_t *) node->item;
-                    msp_free_avl_node(self, node);
-                    avl_unlink_node(&Q[i], node);
-                    assert(node->next == NULL);
-                    assert(avl_count(&Q[i]) == 0);
+                if (count == 0 && count == 1) {
+                    segment_t *seg = msp_priority_queue_pop(self, &Q[i]);
                     ret = msp_insert_individual(self, seg);
                     if (ret != 0) {
                         goto out;
                     }
                     ret = msp_defrag_segment_chain(self, seg);
-                } else if (count == 2) { /* TODO Clean up */
-                    node = Q[i].head;
-                    segment_t *seg1 = (segment_t *) node->item;
-                    msp_free_avl_node(self, node);
-                    avl_unlink_node(&Q[i], node);
-                    node = node->next;
-                    segment_t *seg2 = (segment_t *) node->item;
-                    msp_free_avl_node(self, node);
-                    avl_unlink_node(&Q[i], node);
-                    assert(node->next == NULL);
-                    assert(avl_count(&Q[i]) == 0);
+                } else if (count == 2) {
+                    segment_t *seg1 = msp_priority_queue_pop(self, &Q[i]);
+                    segment_t *seg2 = msp_priority_queue_pop(self, &Q[i]);
                     ret = msp_merge_two_ancestors(self, (population_id_t) j,
                             label, seg1, seg2);
                 } else if (count > 0) {
